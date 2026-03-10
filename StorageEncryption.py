@@ -35,7 +35,8 @@ def main():
 
 def service_listen(socket):
     """ Listens for an incoming requests to process, and sends a response. """
-    req = socket.recv()
+    # TODO: Check and handle errors for bad json input
+    req = socket.recv_json()
     print("Received request:", req)
 
     rep = Response()
@@ -46,7 +47,7 @@ def service_listen(socket):
         rep.data = "COULD NOT PARSE REQUEST"
         rep.status = "FAIL"
 
-    socket.send(rep)
+    socket.send_json({"status": rep.status, "data": rep.data})
 
 def encrypt_data(key, data):
     """ Given a key and data, encrypt it and return the encrypted data. """
@@ -62,19 +63,14 @@ def decrypt_data(key, data):
 
 
 def parse_request(req) -> PreparedRequest|None:
-    """ Parses the request as JSON and Returns a Prepared Request. Returns
+    """ Parses the request into a Prepared Request object. Returns
         None if the request cannot be parsed or if fields are missing. """
-    try:
-        json_data = json.loads(req.data)
-    except json.decoder.JSONDecodeError:
-        return None
-
     prepared_request = PreparedRequest()
     try:
-        prepared_request.action = json_data["action"]
-        prepared_request.key = json_data["key"]
-        prepared_request.data = json_data["data"]
-    except KeyError:
+        prepared_request.action = req.action
+        prepared_request.key = req.key
+        prepared_request.data = req.data
+    except AttributeError:
         return None
 
     return prepared_request
