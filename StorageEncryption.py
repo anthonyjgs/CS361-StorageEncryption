@@ -3,7 +3,6 @@ import json
 from cryptography.fernet import Fernet
 
 
-HOST = "localhost"
 PORT = 55059
 
 
@@ -23,8 +22,8 @@ def main():
     print("Initializing...")
     context = zmq.Context()
     socket = context.socket(zmq.REP)
-    socket.bind(f"tcp://{HOST}:{PORT}")
-    print(f"Listening on {HOST}:{PORT}")
+    socket.bind(f"tcp://localhost:{PORT}")
+    print(f"Listening on port {PORT}")
 
     try:
         while True:
