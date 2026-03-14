@@ -1,6 +1,9 @@
 import zmq
 import json
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+import base64
 
 
 PORT = 55059
@@ -49,17 +52,31 @@ def service_listen(socket):
 
     socket.send_json({"status": rep.status, "data": rep.data})
 
-def encrypt_data(key, data):
+def key_encode(key_bytes:bytes):
+    """ Generate a fernet-compatible key from the bytes """
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b"", iterations=100000,)
+    key_fernet = base64.urlsafe_b64encode(kdf.derive(key_bytes))
+    return key_fernet
+
+def encrypt_data(key_str:str, data: str, encoding:str="utf-8") -> str:
     """ Given a key and data, encrypt it and return the encrypted data. """
+    key = key_encode(key_str.encode(encoding))
+
     cipher = Fernet(key)
-    return cipher.encrypt(data)
+    encrypted_bytes = cipher.encrypt(data.encode())
+    encrypted_str = encrypted_bytes.decode(encoding)
+    return encrypted_str
 
 
-def decrypt_data(key, data):
+def decrypt_data(key_str:str, data: str, encoding:str="utf-8") -> str:
     """ Given a key and data previously encrypted with it, return the decrypted
         data. """
+    key = key_encode(key_str.encode(encoding))
+
     cipher = Fernet(key)
-    return cipher.decrypt(data)
+    decrypted_bytes = cipher.decrypt(data.encode(encoding))
+    decrypted_str = decrypted_bytes.decode(encoding)
+    return  decrypted_str
 
 
 def parse_request(req) -> PreparedRequest|None:
@@ -67,10 +84,11 @@ def parse_request(req) -> PreparedRequest|None:
         None if the request cannot be parsed or if fields are missing. """
     prepared_request = PreparedRequest()
     try:
-        prepared_request.action = req.action
-        prepared_request.key = req.key
-        prepared_request.data = req.data
-    except AttributeError:
+        prepared_request.action = req["action"]
+        prepared_request.key = json.dumps(["key"])
+        prepared_request.data = req["data"]
+    except KeyError as e:
+        print(f"KeyError during parse of request: {str(e)}")
         return None
 
     return prepared_request
@@ -81,7 +99,7 @@ def process_request(prepared_request: PreparedRequest, rep: Response) -> Respons
         rep. """
     action = prepared_request.action
     key = prepared_request.key
-    data = prepared_request.data
+    data = json.dumps(prepared_request.data)
 
     if action == "encrypt":
         rep.data = encrypt_data(key, data)
